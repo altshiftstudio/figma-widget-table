@@ -1,4 +1,3 @@
-var _ = require('lodash');
 const { widget } = figma
 const { Frame, Text, Ellipse, Rectangle, SVG, useSyncedState, useSyncedMap, usePropertyMenu, AutoLayout, useEffect, waitForTask, Input, useWidgetId } = widget
 
@@ -1360,7 +1359,7 @@ function Main() {
 								// TODO: How can I wait for data to be set?
 
 								// Create a clone of the originalTableCols so we can merge their values back into the table
-								var origTableCols = _.cloneDeep(tableCols.entries())
+								var origTableCols = JSON.parse(JSON.stringify(tableCols.entries()))
 								origTableCols.shift()
 
 
