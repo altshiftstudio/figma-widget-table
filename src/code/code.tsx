@@ -962,12 +962,16 @@ function Main() {
 					}
 
 					// Change the current cell ID to the new newly selected cell
-					currentCellId = `${colId}:${rowId}`
+					// colId/rowId may be wrapped single-element arrays from putEntriesIntoArray;
+					// normalise to strings before using as map keys.
+					let normColId = Array.isArray(colId) ? colId[0] : colId
+					let normRowId = Array.isArray(rowId) ? rowId[0] : rowId
+					currentCellId = `${normColId}:${normRowId}`
 
 					var nextCell = tableCells.get(currentCellId) || { data: '', active: false, link: '' }
 
 					// Refresh column context for the cell we're moving to
-					currentCol = tableCols.get(colId)
+					currentCol = tableCols.get(normColId)
 					currentColType = getColumnType(currentCol)
 					currentColOptions = getColumnOptions(currentCol)
 
