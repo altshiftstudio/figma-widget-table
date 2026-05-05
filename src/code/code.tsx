@@ -144,6 +144,40 @@ const componentProps = {
 	}
 }
 
+const TAG_COLORS = [
+	{ bg: '#FFE2DD', fg: '#A63A1A' },
+	{ bg: '#FFF1C2', fg: '#7A5A00' },
+	{ bg: '#D6F5DC', fg: '#1F6B33' },
+	{ bg: '#D9E8FF', fg: '#1A4799' },
+	{ bg: '#E8DFFF', fg: '#5320A1' },
+	{ bg: '#FFDEC2', fg: '#8C4317' },
+	{ bg: '#E2E2E2', fg: '#3D3D3D' },
+	{ bg: '#FFD9EE', fg: '#992766' },
+	{ bg: '#CFEFE6', fg: '#0F5F4D' },
+	{ bg: '#FFD7D7', fg: '#7A1F1F' }
+]
+
+function randomTagColor() {
+	return TAG_COLORS[Math.floor(Math.random() * TAG_COLORS.length)]
+}
+
+function getColumnType(col) {
+	return (col && col.type) || 'text'
+}
+
+function getColumnOptions(col) {
+	return (col && col.options) || []
+}
+
+function findOption(col, value) {
+	if (!value) return null
+	let opts = getColumnOptions(col)
+	for (let i = 0; i < opts.length; i++) {
+		if (opts[i].label === value) return opts[i]
+	}
+	return null
+}
+
 const alphabet = [
 	'', 'A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J', 'K', 'L', 'M', 'N', 'O', 'P', 'Q', 'R', 'S', 'T', 'U', 'V', 'W', 'X', 'Y', 'Z'
 ]
@@ -579,6 +613,136 @@ function Main() {
 		tableCols.set(colIndex, { ...colData, size })
 	}
 
+	function setColumnType(colId, type) {
+		var colData = tableCols.get(colId) || {}
+		var update : any = { ...colData, type }
+		if (type === 'dropdown' && !update.options) {
+			update.options = []
+		}
+		tableCols.set(colId, update)
+	}
+
+	function setColumnOptions(colId, options) {
+		var colData = tableCols.get(colId) || {}
+		tableCols.set(colId, { ...colData, options })
+	}
+
+	function openManageOptionsUI(colId) {
+		var colData = tableCols.get(colId) || {}
+		var options = getColumnOptions(colData)
+
+		figma.showUI(`
+			<style>${__uiFiles__["css"]}</style>
+			<style>
+				body { margin: 0; padding: 0; }
+				.options-wrap { padding: 12px; font-size: 12px; }
+				.options-list { display: flex; flex-direction: column; gap: 6px; margin-bottom: 8px; }
+				.option-row { display: flex; align-items: center; gap: 8px; }
+				.option-swatch { width: 16px; height: 16px; border-radius: 50%; flex-shrink: 0; cursor: pointer; border: 1px solid rgba(0,0,0,0.08); }
+				.option-input { flex: 1; min-width: 0; padding: 6px 8px; border: 1px solid var(--figma-color-border); border-radius: 2px; background: var(--figma-color-bg); color: var(--figma-color-text); font: inherit; }
+				.option-input:focus { outline: none; border-color: var(--figma-color-bg-brand); }
+				.option-delete { background: transparent; border: none; cursor: pointer; color: var(--figma-color-text-secondary); padding: 4px; line-height: 1; }
+				.option-delete:hover { color: var(--figma-color-text); }
+				.empty-state { color: var(--figma-color-text-secondary); padding: 8px 0; }
+				.add-button { width: 100%; padding: 6px; border: 1px dashed var(--figma-color-border); border-radius: 2px; background: transparent; color: var(--figma-color-text-secondary); cursor: pointer; font: inherit; }
+				.add-button:hover { color: var(--figma-color-text); border-color: var(--figma-color-text-secondary); }
+				.title { font-weight: 600; margin: 0 0 8px; }
+			</style>
+			<div class="options-wrap">
+				<p class="title">Dropdown options</p>
+				<div id="optionsList" class="options-list"></div>
+				<button id="addOption" class="add-button">+ Add option</button>
+			</div>
+			<script>
+				const TAG_COLORS = ${JSON.stringify(TAG_COLORS)};
+				let options = ${JSON.stringify(options)};
+				const list = document.getElementById('optionsList');
+				const addBtn = document.getElementById('addOption');
+
+				function send() {
+					parent.postMessage({ pluginMessage: { type: 'set-options', options } }, '*');
+				}
+
+				function render() {
+					list.innerHTML = '';
+					if (options.length === 0) {
+						const empty = document.createElement('div');
+						empty.className = 'empty-state';
+						empty.textContent = 'No options yet. Add one below.';
+						list.appendChild(empty);
+						return;
+					}
+					options.forEach((opt, i) => {
+						const row = document.createElement('div');
+						row.className = 'option-row';
+						const swatch = document.createElement('div');
+						swatch.className = 'option-swatch';
+						swatch.style.background = opt.color.bg;
+						swatch.title = 'Click to change color';
+						swatch.addEventListener('click', () => {
+							const idx = TAG_COLORS.findIndex(c => c.bg === opt.color.bg);
+							const next = TAG_COLORS[(idx + 1) % TAG_COLORS.length];
+							options[i] = Object.assign({}, opt, { color: next });
+							render();
+							send();
+						});
+						const input = document.createElement('input');
+						input.className = 'option-input';
+						input.type = 'text';
+						input.value = opt.label;
+						input.addEventListener('input', () => {
+							options[i] = Object.assign({}, options[i], { label: input.value });
+							send();
+						});
+						const del = document.createElement('button');
+						del.className = 'option-delete';
+						del.innerHTML = '&times;';
+						del.title = 'Delete option';
+						del.addEventListener('click', () => {
+							options.splice(i, 1);
+							render();
+							send();
+						});
+						row.appendChild(swatch);
+						row.appendChild(input);
+						row.appendChild(del);
+						list.appendChild(row);
+					});
+				}
+
+				addBtn.addEventListener('click', () => {
+					const color = TAG_COLORS[Math.floor(Math.random() * TAG_COLORS.length)];
+					options.push({ label: 'Option ' + (options.length + 1), color });
+					render();
+					send();
+					const inputs = list.querySelectorAll('.option-input');
+					if (inputs.length) {
+						const last = inputs[inputs.length - 1];
+						last.focus();
+						last.select();
+					}
+				});
+
+				window.addEventListener('keydown', (e) => {
+					if (e.key === 'Escape') {
+						parent.postMessage({ pluginMessage: { type: 'close-plugin' } }, '*');
+					}
+				});
+
+				render();
+			</script>
+		`, { title: 'Manage options', width: 280, height: 360, themeColors: true })
+
+		figma.ui.onmessage = (message) => {
+			if (message.type === 'set-options') {
+				setColumnOptions(colId, message.options)
+			}
+			if (message.type === 'close-plugin') {
+				figma.closePlugin()
+			}
+		}
+	}
+
 	function addColumn(colIndex, position = 1) {
 		var uniqueId = genRandomId(colIndex + 1)
 
@@ -730,9 +894,14 @@ function Main() {
 
 		// (166 * 2) (300 * 2)
 
-		let {data, active} = tableCells.get(id) || { data: '', active: false }
+		let existingCell = tableCells.get(id) || { data: '', active: false, link: '' }
+		let {data, active} = existingCell
+		let cellLink = existingCell.link || ''
 		let [colId, rowId] = id.split(':')
 		let currentCellId = id;
+		let currentCol = tableCols.get(colId)
+		let currentColType = getColumnType(currentCol)
+		let currentColOptions = getColumnOptions(currentCol)
 
 		// Gets the colour of first cell first clicked (not previous)
 		let previousCellColor = active
@@ -795,7 +964,17 @@ function Main() {
 					// Change the current cell ID to the new newly selected cell
 					currentCellId = `${colId}:${rowId}`
 
-					var nextCell = tableCells.get(currentCellId) || { data: '', active: false }
+					var nextCell = tableCells.get(currentCellId) || { data: '', active: false, link: '' }
+
+					// Refresh column context for the cell we're moving to
+					currentCol = tableCols.get(colId)
+					currentColType = getColumnType(currentCol)
+					currentColOptions = getColumnOptions(currentCol)
+
+					// Header cells always edit as plain text regardless of column type
+					let nextEditorType = (rowIndex === 1 && widgetFirstRowAsHeader) || rowIndex === 0
+						? 'text'
+						: currentColType
 
 					if (showCellsBeingEdited) {
 						// Store the cell colour
@@ -807,7 +986,7 @@ function Main() {
 						addActiveCell(currentCellId)
 					}
 
-					figma.ui.postMessage({ type: "post-data", data: {data: nextCell.data, rowIndex, colIndex} })
+					figma.ui.postMessage({ type: "post-data", data: {data: nextCell.data, link: nextCell.link || '', rowIndex, colIndex, columnType: nextEditorType, options: currentColOptions} })
 
 				}
 
@@ -817,13 +996,32 @@ function Main() {
 
 				data = message.data.data
 				let isLink = message.data.link
+				let editorType = message.data.columnType || 'text'
+				let explicitUrl = message.data.url
 
 				if (Number(message.data)) {
 					data = Number(message.data.data)
 				}
 
 				let link = ""
-				if (isLink) {
+
+				if (editorType === 'link') {
+					// Link column: URL is explicit, label is data
+					if (explicitUrl) {
+						if (explicitUrl.startsWith("http://") || explicitUrl.startsWith("https://") || explicitUrl.startsWith("mailto:")) {
+							link = explicitUrl
+						}
+						else {
+							link = "http://" + explicitUrl
+						}
+					}
+				}
+				else if (editorType === 'dropdown') {
+					// Dropdown column: data is option label, no link
+					link = ""
+				}
+				else if (isLink) {
+					// Text column: keep auto-link detection behavior
 					if (data.startsWith("http://") || data.startsWith("https://")) {
 						link = data
 					}
@@ -880,9 +1078,14 @@ function Main() {
 						addActiveCell(id)
 					}
 
+					// Header cells always edit as plain text regardless of column type
+					let editorType = (rowIndex === 1 && widgetFirstRowAsHeader) || rowIndex === 0
+						? 'text'
+						: currentColType
+
 					figma.showUI(`<style>${__uiFiles__["css"]}</style>${__uiFiles__["editCell"]}`, { title: "Cell", width: 300, height: cellHeight(31), themeColors: true });
 					figma.ui.postMessage({ type: "show-ui", settings })
-					figma.ui.postMessage({ type: "post-data", data: {data, rowIndex, colIndex } })
+					figma.ui.postMessage({ type: "post-data", data: {data, link: cellLink, rowIndex, colIndex, columnType: editorType, options: currentColOptions } })
 
 					// if (showCellsBeingEdited) {
 
@@ -1522,7 +1725,8 @@ function Main() {
 		// let data = evalData(cell.data)
 		let data = cell.data
 
-
+		let colType = getColumnType(col)
+		let matchedOption = colType === 'dropdown' ? findOption(col, data) : null
 
 
 		return (
@@ -1553,18 +1757,38 @@ function Main() {
 					blendMode="pass-through"
 					padding={{ "top": 14 * theme.paddingScaleY, "right": 1, "bottom": 14 * theme.paddingScaleY, "left": (14 * theme.paddingScaleX) - 1 }}
 					spacing={10}
+					verticalAlignItems="center"
 					overflow="visible">
-					<Text key={id} width="fill-parent" href={href}
-						name="Text"
-						blendMode="pass-through"
-						fill={theme.colorText}
-						fontFamily="Inter"
-						fontWeight={400}
-						fontSize={theme.textSize * 1.333}
-						verticalAlignText="center"
-						textDecoration={hrefBorder}>
-						{data}
-					</Text>
+					{matchedOption ? (
+						<AutoLayout
+							name="Tag"
+							fill={matchedOption.color.bg}
+							cornerRadius={4}
+							padding={{ top: 4, right: 8, bottom: 4, left: 8 }}
+							verticalAlignItems="center">
+							<Text key={id}
+								name="TagText"
+								fill={matchedOption.color.fg}
+								fontFamily="Inter"
+								fontWeight={500}
+								fontSize={theme.textSize * 1.1}
+								verticalAlignText="center">
+								{data}
+							</Text>
+						</AutoLayout>
+					) : (
+						<Text key={id} width="fill-parent" href={href}
+							name="Text"
+							blendMode="pass-through"
+							fill={theme.colorText}
+							fontFamily="Inter"
+							fontWeight={400}
+							fontSize={theme.textSize * 1.333}
+							verticalAlignText="center"
+							textDecoration={hrefBorder}>
+							{data}
+						</Text>
+					)}
 				</AutoLayout>
 				<Rectangle
 					stroke={strokePaint}
@@ -1676,6 +1900,9 @@ function Main() {
 		var width = setWidth(col, theme)
 		var widthRendered = width * theme.columnWidthMultiplier
 
+		var currentColType = getColumnType(col)
+		var manageOptionsDisplay = currentColType === 'dropdown' ? 'block' : 'none'
+
 		return (
 			<AutoLayout width={widthRendered}
 				name="ColumnLetter"
@@ -1690,7 +1917,22 @@ function Main() {
 						// setStrokeWeight(2)
 						figma.showUI(`
 						<style>${__uiFiles__["css"]}</style>
+						<style>
+							.customMenu__item.type-row { display: flex; align-items: center; gap: 8px; justify-content: space-between; }
+							.customMenu__item.type-row select { font: inherit; padding: 4px 8px; border: 1px solid transparent; border-radius: 2px; background: transparent; color: var(--figma-color-text-secondary); }
+							.customMenu__item.type-row select:hover { border-color: var(--figma-color-border); color: var(--figma-color-text); }
+							.customMenu__item.type-row select:focus { border-color: var(--figma-color-bg-brand); color: var(--figma-color-text); outline: none; }
+						</style>
 						<div id="actions" class="mt-xxsmall type--small">
+							<label class="customMenu__item type-row">Type
+								<select id="colType">
+									<option value="text">Text</option>
+									<option value="dropdown">Dropdown</option>
+									<option value="link">Link</option>
+								</select>
+							</label>
+							<button class="customMenu__item" id="manageOptions" style="display:${manageOptionsDisplay}">Manage options...</button>
+							<hr/>
 							<button class="customMenu__item" id="insertToLeft">Insert to Left</button>
 							<button class="customMenu__item" id="insertToRight">Insert to Right</button>
 							<hr/>
@@ -1713,6 +1955,10 @@ function Main() {
 				const sortAscending = document.getElementById("sortAscending");
 				const sortDescending = document.getElementById("sortDescending");
 				const resize = document.getElementById("resize");
+				const colType = document.getElementById("colType");
+				const manageOptions = document.getElementById("manageOptions");
+
+				colType.value = ${JSON.stringify(currentColType)};
 
 				window.focus()
 
@@ -1729,6 +1975,13 @@ function Main() {
 				// 	parent.postMessage({ pluginMessage: {type: 'close-plugin'} }, '*');
 				// });
 
+				colType.addEventListener("change", () => {
+					parent.postMessage({ pluginMessage: {type: 'set-column-type', columnType: colType.value} }, '*');
+					manageOptions.style.display = colType.value === 'dropdown' ? 'block' : 'none';
+				})
+				manageOptions.addEventListener("click", () => {
+					parent.postMessage({ pluginMessage: {type: 'manage-options'} }, '*');
+				})
 				deleteColumn.addEventListener("click", () => {
 					parent.postMessage({ pluginMessage: {type: 'delete-column', rowIndex: ${rowIndex}, colIndex: ${colIndex}} }, '*');
 				})
@@ -1760,7 +2013,7 @@ function Main() {
 					}
 				})
 				</script>
-			`, { title: `Column ${alphabet[colIndex]}`, width: 200, height: 308+8+8, themeColors: true });
+			`, { title: `Column ${alphabet[colIndex]}`, width: 220, height: 412+8+8, themeColors: true });
 			// position: { x: event.canvasX + (10 / figma.viewport.zoom), y: event.canvasY - (48 / figma.viewport.zoom) }
 						figma.ui.onmessage = (message) => {
 
@@ -1794,6 +2047,15 @@ function Main() {
 
 							if (message.type === 'resize-column') {
 								resizeColumn(colId, message.size)
+							}
+
+							if (message.type === 'set-column-type') {
+								setColumnType(colId, message.columnType)
+							}
+
+							if (message.type === 'manage-options') {
+								openManageOptionsUI(colId)
+								return
 							}
 
 							if (message.type === 'close-plugin') {
